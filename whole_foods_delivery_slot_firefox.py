@@ -5,21 +5,30 @@ from selenium import webdriver
 import sys
 import time
 import os
+import re
+import pickle
+from time import gmtime, strftime
 
+max_not_available = 10
+
+def get_now():
+   return strftime("%Y-%m-%d %H:%M:%S", gmtime())
 
 def getWFSlot(productUrl):
    driver = webdriver.Firefox()
    driver.get(productUrl)           
    html = driver.page_source
    soup = bs4.BeautifulSoup(html)
-   time.sleep(60)
+   for i in reversed(range(0, 45)):
+      time.sleep(1)
+      print(f"Waiting {i} more seconds before continuing...")
+   # time.sleep(60)
    no_open_slots = True
 
    while no_open_slots:
       driver.refresh()
-      print("refreshed")
       html = driver.page_source
-      soup = bs4.BeautifulSoup(html)
+      soup = bs4.BeautifulSoup(html, features="html.parser")
       time.sleep(4)
 
       slot_patterns = ['Next available', '1-hour delivery windows', '2-hour delivery windows']
@@ -46,15 +55,37 @@ def getWFSlot(productUrl):
          pass
 
       try:
-         no_slot_pattern = 'No delivery windows available. New windows are released throughout the day.'
-         if no_slot_pattern == soup.find('h4', class_ ='a-alert-heading').text:
-            print("NO SLOTS!")
-      except AttributeError: 
-            print('SLOTS OPEN!')
-            os.system('say "Slots for delivery opened!"')
+         regex = re.compile('([0-9]+) items not available')
+         button_text = soup.find('button', class_='slotButton').text
+         soup.find('button', class_='a-spacing-micro')
+         matches = regex.search(button_text)
+         sentence = ' '.join(button_text.split())
+         os.system(f'say "Slots are opened! {sentence}"')
+         print(f"Regex Match: {re.search('([0-9]+) items not available', button_text)}")
+         if (matches is not None) and (int(matches.group(1)) < max_not_available):
             no_open_slots = False
+            if (int(matches.group(1)) > 0):
+               li_items = soup.find_all('li', class_='a-spacing-micro')
+               for item in li_items:
+                  print(f"Not available: {item.text.strip()}")
+                  os.system(f'say "{item.text.strip()} is not available."')
+            else:
+               os.system(f'say "All items are available!"')
+               
+            print(f'-----------------------------------------------------')
+            print(f'-----------------------------------------------------')
+            print(f'{get_now()} SLOT AVAILABLE!!!!')
+            print(f'-----------------------------------------------------')
+            print(f'-----------------------------------------------------')
+            
+         for i in reversed(range(0, 240)):
+            time.sleep(1)
+            print(f"Waiting {i} more seconds before restarting.  Complete your order before a refresh!")
+         os.system(f'say "Timed out.  Restarting slot search."')
+      except AttributeError: 
+            print(f' {get_now()} NO SLOTS OPEN!')
 
 
-getWFSlot('https://www.amazon.com/gp/buy/shipoptionselect/handlers/display.html?hasWorkingJavascript=1')
+getWFSlot('https://www.amazon.co.uk/gp/buy/shipoptionselect/handlers/display.html?hasWorkingJavascript=1')
 
 
